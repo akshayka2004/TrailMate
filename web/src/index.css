@@ -1,0 +1,21 @@
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap");
+@import "tailwindcss";
+
+@theme {
+  --font-heading: "Fira Code", monospace;
+  --font-body: "Fira Sans", sans-serif;
+
+  --color-primary: #0f172a;
+  --color-on-primary: #ffffff;
+  --color-secondary: #1e293b;
+  --color-accent: #22c55e;
+  --color-background: #020617;
+  --color-foreground: #f8fafc;
+  --color-muted: #1a1e2f;
+  --color-border-subtle: #334155;
+  --color-destructive: #ef4444;
+}
+
+body {
+  font-family: var(--font-body);
+}
