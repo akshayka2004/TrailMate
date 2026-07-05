@@ -3,6 +3,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
+from sqlalchemy import text
 
 from alembic import context
 
@@ -24,9 +25,19 @@ if config.config_file_name is not None:
 
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = None
+import app.models  # noqa: E402, F401  (registers all models on Base.metadata)
+from app.db.base import Base  # noqa: E402
+
+target_metadata = Base.metadata
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    # Never touch tables that exist in the DB but not in our models
+    # (PostGIS/tiger geocoder ships spatial_ref_sys and friends).
+    if type_ == "table" and reflected and name not in target_metadata.tables:
+        return False
+    return True
+
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -52,6 +63,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -72,8 +84,17 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # postgis/postgis image puts tiger geocoder schemas on the search_path;
+        # tiger.edges would collide with our public.edges during autogenerate.
+        connection.execute(text("SET search_path TO public"))
+        # Commit ends the implicit transaction so alembic manages its own;
+        # SET search_path is session-scoped and survives the commit.
+        connection.commit()
+        connection.dialect.default_schema_name = "public"
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            include_object=include_object,
         )
 
         with context.begin_transaction():
