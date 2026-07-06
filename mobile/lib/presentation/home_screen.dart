@@ -7,6 +7,7 @@ import '../domain/models.dart';
 import 'map_screen.dart';
 import 'providers.dart';
 import 'theme.dart';
+import 'walk_mode_screen.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +27,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: const Text('TrailMate'),
         actions: [
+          IconButton(
+            tooltip: 'Admin walk mode',
+            icon: const Icon(Icons.add_location_alt_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const WalkModeScreen()),
+            ),
+          ),
           IconButton(
             tooltip: 'Sign out',
             icon: const Icon(Icons.logout),

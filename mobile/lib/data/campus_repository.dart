@@ -261,3 +261,46 @@ class AuthApi {
   Future<void> logout() => _api.clearTokens();
   Future<bool> isLoggedIn() => _api.hasToken();
 }
+
+/// Admin walk-mode calls: drop a checkpoint at the current GPS location,
+/// mint its QR, and connect it to the previous drop (Phase 7).
+class AdminApi {
+  AdminApi(this._api);
+  final ApiClient _api;
+
+  Future<Checkpoint> createCheckpoint(
+    String label,
+    double lat,
+    double lng, {
+    int? buildingId,
+  }) async {
+    final resp = await _api.dio.post('/checkpoints', data: {
+      'label': label,
+      'lat': lat,
+      'lng': lng,
+      'building_id': buildingId,
+    });
+    return Checkpoint.fromJson(resp.data as Map<String, dynamic>);
+  }
+
+  Future<void> generateQr(int checkpointId) =>
+      _api.dio.post('/checkpoints/$checkpointId/qr');
+
+  String qrPngUrl(int checkpointId) =>
+      '$kApiBaseUrl/checkpoints/$checkpointId/qr.png';
+
+  Future<void> connectEdge(
+    int aId,
+    int bId,
+    double distanceMeters, {
+    bool indoor = false,
+  }) async {
+    await _api.dio.post('/edges', data: {
+      'checkpoint_a_id': aId,
+      'checkpoint_b_id': bId,
+      'distance_meters': (distanceMeters * 10).roundToDouble() / 10,
+      'walking_time_estimate_sec': (distanceMeters / 1.4).ceil().clamp(1, 1 << 30),
+      'is_indoor': indoor,
+    });
+  }
+}

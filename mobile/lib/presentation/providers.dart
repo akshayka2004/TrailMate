@@ -15,6 +15,10 @@ final authApiProvider = Provider<AuthApi>(
   (ref) => AuthApi(ref.watch(apiClientProvider)),
 );
 
+final adminApiProvider = Provider<AdminApi>(
+  (ref) => AdminApi(ref.watch(apiClientProvider)),
+);
+
 final campusRepositoryProvider = Provider<CampusRepository>(
   (ref) => CampusRepository(
     ref.watch(apiClientProvider),
