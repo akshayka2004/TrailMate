@@ -8,6 +8,7 @@ from app.api.departments import router as departments_router
 from app.api.edges import router as edges_router
 from app.api.rooms import router as rooms_router
 from app.api.route import router as route_router
+from app.api.sync import router as sync_router
 
 app = FastAPI(title="TrailMate API", version="0.1.0")
 
@@ -26,6 +27,7 @@ app.include_router(rooms_router)
 app.include_router(checkpoints_router)
 app.include_router(edges_router)
 app.include_router(route_router)
+app.include_router(sync_router)
 
 
 @app.get("/health")

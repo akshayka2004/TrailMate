@@ -45,8 +45,9 @@ def client(test_database):
         yield c
     app.dependency_overrides.clear()
 
-    # wipe users between tests via a fresh sync connection
+    # Wipe every table between tests so each starts from an empty DB.
     sync_engine = create_engine(TEST_URL_SYNC)
     with sync_engine.begin() as conn:
-        conn.execute(text("TRUNCATE users RESTART IDENTITY CASCADE"))
+        tables = ", ".join(Base.metadata.tables.keys())
+        conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
     sync_engine.dispose()
