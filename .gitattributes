@@ -1,0 +1,5 @@
+# Shell scripts and Dockerfiles must keep LF endings — CRLF breaks the
+# container shebang (`/usr/bin/env sh\r`) and Docker parsing on Windows checkouts.
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+Dockerfile text eol=lf
