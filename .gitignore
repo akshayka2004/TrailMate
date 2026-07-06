@@ -23,6 +23,10 @@ dist/
 mobile/build/
 *.g.dart.bak
 
+# Test / tooling artifacts
+.playwright-mcp/
+*.png
+
 # IDE / OS
 .idea/
 .vscode/
