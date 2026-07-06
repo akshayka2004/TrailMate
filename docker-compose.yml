@@ -16,5 +16,37 @@ services:
       timeout: 5s
       retries: 10
 
+  backend:
+    build: ./backend
+    container_name: trailmate-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Inside the compose network the DB host is the `db` service.
+      DATABASE_URL: postgresql+asyncpg://trailmate:trailmate@db:5432/trailmate
+      JWT_SECRET: ${JWT_SECRET:-change_me}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_KEY: ${SUPABASE_KEY:-}
+    expose:
+      - "8000"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: trailmate-nginx
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
 volumes:
   trailmate_pgdata:
