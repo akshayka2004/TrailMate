@@ -14,7 +14,8 @@ app = FastAPI(title="TrailMate API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    # Dev: web admin (5173) + Flutter web served on any localhost port.
+    allow_origin_regex=r"http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
