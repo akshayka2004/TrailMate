@@ -16,7 +16,9 @@ _database_url = os.getenv(
     "DATABASE_URL",
     "postgresql+asyncpg://trailmate:trailmate@localhost:5432/trailmate",
 ).replace("+asyncpg", "+psycopg2")
-config.set_main_option("sqlalchemy.url", _database_url)
+# configparser treats '%' as interpolation — escape it (e.g. URL-encoded
+# passwords like TrailMate%40123) so set_main_option round-trips cleanly.
+config.set_main_option("sqlalchemy.url", _database_url.replace("%", "%%"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
