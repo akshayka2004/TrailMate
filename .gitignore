@@ -26,6 +26,7 @@ mobile/build/
 # Test / tooling artifacts
 .playwright-mcp/
 *.png
+*.log
 
 # IDE / OS
 .idea/

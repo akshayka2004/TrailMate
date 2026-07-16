@@ -7,7 +7,7 @@ plugins {
 android {
     namespace = "in.saintgits.trailmate"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
