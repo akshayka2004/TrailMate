@@ -30,7 +30,10 @@ export function LoginPage() {
         <h1 className="mb-1 font-heading text-2xl font-semibold tracking-tight">
           TrailMate
         </h1>
-        <p className="mb-6 text-sm text-slate-400">Admin portal sign in</p>
+        <p className="mb-1 text-sm text-slate-400">Admin portal sign in</p>
+        <p className="mb-6 text-xs text-slate-500">
+          Demo mode: admin@trailmate.dev / Admin@123
+        </p>
 
         <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">

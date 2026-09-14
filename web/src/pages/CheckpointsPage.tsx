@@ -13,7 +13,7 @@ import {
 } from "react-leaflet";
 import { Button, PageHeader, inputClass } from "../components/ui";
 import { useCreate, useList, useRemove } from "../hooks/useResource";
-import { api } from "../lib/api";
+import { mockGenerateQr } from "../lib/mockData";
 import type { Building, Checkpoint } from "../lib/resourceTypes";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -69,7 +69,8 @@ export function CheckpointsPage() {
   }
 
   async function generateQr(id: number) {
-    await api.post(`/checkpoints/${id}/qr`);
+    // TEMPORARY: mock QR generation (backend unreachable). See mockData.ts.
+    mockGenerateQr(id);
     qc.invalidateQueries({ queryKey: ["checkpoints"] });
   }
 

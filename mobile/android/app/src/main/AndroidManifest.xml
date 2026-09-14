@@ -9,7 +9,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <application
-        android:label="trailmate"
+        android:label="TrailMate"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

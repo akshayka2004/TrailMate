@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../domain/models.dart';
 import 'api_client.dart';
+import 'demo_data.dart';
 import 'sync_cache.dart';
 
 /// Owns the campus dataset and routing. Online it pulls /sync/snapshot and
@@ -27,18 +28,29 @@ class CampusRepository {
   // adjacency: checkpointId -> list of (neighborId, distance, timeSec)
   final Map<int, List<(int, double, int)>> _adj = {};
   bool loadedFromCache = false;
+  bool isDemoData = false;
 
   Future<void> load() async {
-    Map<String, dynamic>? snapshot;
+    Map<String, dynamic> snapshot;
     try {
       final resp = await _api.dio.get('/sync/snapshot');
       snapshot = resp.data as Map<String, dynamic>;
       await _cache.save(snapshot);
       loadedFromCache = false;
+      isDemoData = false;
     } catch (_) {
-      snapshot = _cache.snapshot;
-      loadedFromCache = true;
-      if (snapshot == null) rethrow;
+      final cached = _cache.snapshot;
+      if (cached != null) {
+        snapshot = cached;
+        loadedFromCache = true;
+        isDemoData = false;
+      } else {
+        // No backend reachable and nothing synced yet — fall back to the
+        // bundled demo campus so the app is still fully usable standalone.
+        snapshot = kDemoSnapshot;
+        loadedFromCache = false;
+        isDemoData = true;
+      }
     }
     _ingest(snapshot);
   }
@@ -247,15 +259,29 @@ class AuthApi {
   final ApiClient _api;
 
   Future<void> login(String email, String password) async {
-    final resp = await _api.dio.post(
-      '/auth/login',
-      data: {'username': email, 'password': password},
-      options: Options(contentType: Headers.formUrlEncodedContentType),
-    );
-    await _api.saveTokens(
-      resp.data['access_token'] as String,
-      resp.data['refresh_token'] as String,
-    );
+    try {
+      final resp = await _api.dio.post(
+        '/auth/login',
+        data: {'username': email, 'password': password},
+        options: Options(contentType: Headers.formUrlEncodedContentType),
+      );
+      await _api.saveTokens(
+        resp.data['access_token'] as String,
+        resp.data['refresh_token'] as String,
+      );
+    } on DioException catch (e) {
+      // Backend unreachable (no live DB connected) and demo credentials
+      // were entered — sign in locally so the app remains fully usable
+      // standalone. A real 401/403 from a reachable backend still rejects.
+      final backendUnreachable = e.type != DioExceptionType.badResponse;
+      if (backendUnreachable &&
+          email.trim() == kDemoEmail &&
+          password == kDemoPassword) {
+        await _api.saveTokens(kDemoToken, kDemoToken);
+        return;
+      }
+      rethrow;
+    }
   }
 
   Future<void> logout() => _api.clearTokens();

@@ -28,6 +28,10 @@ mobile/build/
 *.png
 *.log
 
+# ...but real app assets are legitimate PNGs, not screenshots — un-ignore them.
+!mobile/android/app/src/main/res/**/*.png
+!mobile/assets/**/*.png
+
 # IDE / OS
 .idea/
 .vscode/
