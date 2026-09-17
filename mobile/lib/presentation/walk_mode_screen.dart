@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../domain/models.dart';
 import 'providers.dart';
@@ -11,7 +12,9 @@ import 'theme.dart';
 /// Phase 7 — admin builds a campus section by walking: drop a checkpoint at
 /// the current GPS location, auto-mint its QR, optionally chain an edge to the
 /// previous drop, and scan-to-confirm placement. Each drop is pushed to the
-/// backend in real time.
+/// backend in real time — or, when the backend is unreachable, saved locally
+/// so the flow stays fully demoable (see AdminApi's fallback in
+/// campus_repository.dart).
 class WalkModeScreen extends ConsumerStatefulWidget {
   const WalkModeScreen({super.key});
 
@@ -58,7 +61,7 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
       if (pos == null) {
         setState(() {
           _busy = false;
-          _error = 'Location unavailable — enable GPS permission.';
+          _error = 'Location unavailable — enable GPS permission and try again.';
         });
         return;
       }
@@ -77,10 +80,13 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
         _dropped.add(cp);
         _busy = false;
       });
-    } catch (e) {
+    } catch (_) {
+      // Network/server failures against a *reachable* backend land here
+      // (bad request, auth, 5xx) — unreachable-backend cases are already
+      // handled transparently by AdminApi's demo fallback above.
       setState(() {
         _busy = false;
-        _error = 'Failed to drop checkpoint: $e';
+        _error = 'Could not save the checkpoint. Check your connection and try again.';
       });
     }
   }
@@ -132,6 +138,7 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
   @override
   Widget build(BuildContext context) {
     final admin = ref.read(adminApiProvider);
+    final isDemoData = ref.read(campusRepositoryProvider).isDemoData;
     return Scaffold(
       appBar: AppBar(title: const Text('Admin walk mode')),
       floatingActionButton: FloatingActionButton.extended(
@@ -149,6 +156,27 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
       ),
       body: Column(
         children: [
+          if (isDemoData)
+            Container(
+              width: double.infinity,
+              color: kSecondary,
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.info_outline, size: 14, color: kAccent),
+                  SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Demo mode — checkpoints are saved on this device only, '
+                      'not synced to a server',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: kAccent, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           SwitchListTile(
             value: _chain,
             activeThumbColor: kAccent,
@@ -158,9 +186,16 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
           ),
           if (_error != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(_error!,
-                  style: const TextStyle(color: Colors.redAccent)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline, color: kDestructive, size: 18),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(_error!, style: const TextStyle(color: kDestructive)),
+                  ),
+                ],
+              ),
             ),
           const Divider(color: kMuted, height: 1),
           Expanded(
@@ -178,12 +213,23 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
                     itemBuilder: (_, i) {
                       final cp = _dropped[_dropped.length - 1 - i];
                       return ListTile(
-                        leading: Image.network(
-                          admin.qrPngUrl(cp.id),
+                        leading: SizedBox(
                           width: 44,
                           height: 44,
-                          errorBuilder: (_, _, _) =>
-                              const Icon(Icons.qr_code, color: kAccent),
+                          child: isDemoData
+                              // No live backend to render/store a QR image —
+                              // render it client-side from the payload so it
+                              // still works standalone.
+                              ? QrImageView(
+                                  data: 'TRAILMATE:CP:${cp.id}',
+                                  backgroundColor: Colors.white,
+                                  padding: const EdgeInsets.all(4),
+                                )
+                              : Image.network(
+                                  admin.qrPngUrl(cp.id),
+                                  errorBuilder: (_, _, _) =>
+                                      const Icon(Icons.qr_code, color: kAccent),
+                                ),
                         ),
                         title: Text(cp.label),
                         subtitle: Text(

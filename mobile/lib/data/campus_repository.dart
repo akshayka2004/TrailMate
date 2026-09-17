@@ -229,6 +229,41 @@ class CampusRepository {
     );
   }
 
+  int _nextDemoCheckpointId = 1000;
+
+  /// Add a checkpoint locally when the backend is unreachable (admin
+  /// walk-mode demo fallback). Ids start well clear of the bundled demo
+  /// dataset's 1-15 range so they never collide.
+  Checkpoint addDemoCheckpoint(
+    String label,
+    double lat,
+    double lng, {
+    int? buildingId,
+  }) {
+    final cp = Checkpoint(
+      id: _nextDemoCheckpointId++,
+      label: label,
+      lat: lat,
+      lng: lng,
+      buildingId: buildingId,
+    );
+    checkpoints = [...checkpoints, cp];
+    _adj[cp.id] = [];
+    return cp;
+  }
+
+  /// Connect two checkpoints locally (admin walk-mode demo fallback).
+  void addDemoEdge(
+    int aId,
+    int bId,
+    double distanceMeters, {
+    bool indoor = false,
+  }) {
+    final t = (distanceMeters / 1.4).ceil().clamp(1, 1 << 30);
+    (_adj[aId] ??= []).add((bId, distanceMeters, t));
+    (_adj[bId] ??= []).add((aId, distanceMeters, t));
+  }
+
   Checkpoint? checkpointByPayload(String payload) {
     // QR payload format from the backend: "TRAILMATE:CP:<id>".
     final match = RegExp(r'^TRAILMATE:CP:(\d+)$').firstMatch(payload.trim());
@@ -290,9 +325,20 @@ class AuthApi {
 
 /// Admin walk-mode calls: drop a checkpoint at the current GPS location,
 /// mint its QR, and connect it to the previous drop (Phase 7).
+///
+/// Each write tries the real backend first; if it's unreachable (no live
+/// DB connected), it falls back to mutating the in-memory
+/// [CampusRepository] directly so the walk-mode demo stays fully usable
+/// standalone — mirroring the read-side fallback in [CampusRepository.load]
+/// and [AuthApi.login]. A real 4xx/5xx from a reachable backend still
+/// propagates as an error.
 class AdminApi {
-  AdminApi(this._api);
+  AdminApi(this._api, this._repo);
   final ApiClient _api;
+  final CampusRepository _repo;
+
+  static bool _backendUnreachable(Object e) =>
+      e is DioException && e.type != DioExceptionType.badResponse;
 
   Future<Checkpoint> createCheckpoint(
     String label,
@@ -300,17 +346,31 @@ class AdminApi {
     double lng, {
     int? buildingId,
   }) async {
-    final resp = await _api.dio.post('/checkpoints', data: {
-      'label': label,
-      'lat': lat,
-      'lng': lng,
-      'building_id': buildingId,
-    });
-    return Checkpoint.fromJson(resp.data as Map<String, dynamic>);
+    try {
+      final resp = await _api.dio.post('/checkpoints', data: {
+        'label': label,
+        'lat': lat,
+        'lng': lng,
+        'building_id': buildingId,
+      });
+      return Checkpoint.fromJson(resp.data as Map<String, dynamic>);
+    } catch (e) {
+      if (_backendUnreachable(e)) {
+        return _repo.addDemoCheckpoint(label, lat, lng, buildingId: buildingId);
+      }
+      rethrow;
+    }
   }
 
-  Future<void> generateQr(int checkpointId) =>
-      _api.dio.post('/checkpoints/$checkpointId/qr');
+  Future<void> generateQr(int checkpointId) async {
+    try {
+      await _api.dio.post('/checkpoints/$checkpointId/qr');
+    } catch (e) {
+      // Demo checkpoints render their QR locally (see walk_mode_screen.dart)
+      // — nothing to persist server-side when the backend is unreachable.
+      if (!_backendUnreachable(e)) rethrow;
+    }
+  }
 
   String qrPngUrl(int checkpointId) =>
       '$kApiBaseUrl/checkpoints/$checkpointId/qr.png';
@@ -321,12 +381,21 @@ class AdminApi {
     double distanceMeters, {
     bool indoor = false,
   }) async {
-    await _api.dio.post('/edges', data: {
-      'checkpoint_a_id': aId,
-      'checkpoint_b_id': bId,
-      'distance_meters': (distanceMeters * 10).roundToDouble() / 10,
-      'walking_time_estimate_sec': (distanceMeters / 1.4).ceil().clamp(1, 1 << 30),
-      'is_indoor': indoor,
-    });
+    try {
+      await _api.dio.post('/edges', data: {
+        'checkpoint_a_id': aId,
+        'checkpoint_b_id': bId,
+        'distance_meters': (distanceMeters * 10).roundToDouble() / 10,
+        'walking_time_estimate_sec':
+            (distanceMeters / 1.4).ceil().clamp(1, 1 << 30),
+        'is_indoor': indoor,
+      });
+    } catch (e) {
+      if (_backendUnreachable(e)) {
+        _repo.addDemoEdge(aId, bId, distanceMeters, indoor: indoor);
+        return;
+      }
+      rethrow;
+    }
   }
 }
