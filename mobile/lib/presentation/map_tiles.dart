@@ -3,23 +3,26 @@ import 'package:flutter_map/flutter_map.dart';
 
 /// Shared base-map tile layer + attribution for every FlutterMap in the app.
 ///
-/// Raw `tile.openstreetmap.org` throttles/blocks direct app traffic under
-/// its usage policy (it expects browsers or cached/self-hosted setups, not
-/// bulk per-app requests) — that is what was causing the map to render
-/// route lines/markers but leave the base map blank. CARTO's free raster
-/// tiles are meant for exactly this kind of direct app use and don't hit
-/// that wall, so switching the tile source is the actual fix rather than
-/// just a network retry.
-const _kTileUrl =
-    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const _kTileSubdomains = ['a', 'b', 'c', 'd'];
+/// CARTO's free `basemaps.cartocdn.com` raster tiles require an API key as
+/// of their current usage policy (unauthenticated requests return a 200 OK
+/// PNG that just says "API KEY REQUIRED" baked into the image — that's what
+/// made the map look "broken"). Pass the key at build time, same pattern as
+/// API_BASE_URL, so it never lives in source:
+///   flutter run --dart-define=CARTO_API_KEY=your_key
+/// Get a free key (5M requests/month non-commercial) at carto.com/basemaps.
+const String _kCartoApiKey = String.fromEnvironment('CARTO_API_KEY');
+
+/// Falls back to raw OpenStreetMap tiles (no key needed, verified working)
+/// if no CARTO key was supplied at build time.
+const _kCartoUrl = 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=$_kCartoApiKey';
+const _kOsmUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 TileLayer buildTileLayer({void Function()? onTileError}) {
+  final usingCarto = _kCartoApiKey.isNotEmpty;
   return TileLayer(
-    urlTemplate: _kTileUrl,
-    subdomains: _kTileSubdomains,
+    urlTemplate: usingCarto ? _kCartoUrl : _kOsmUrl,
     userAgentPackageName: 'in.saintgits.trailmate',
-    maxNativeZoom: 20,
+    maxNativeZoom: 19,
     errorTileCallback: onTileError == null ? null : (tile, error, stack) => onTileError(),
   );
 }
@@ -31,7 +34,7 @@ Widget buildMapAttribution() {
     alignment: AttributionAlignment.bottomLeft,
     attributions: [
       TextSourceAttribution('OpenStreetMap contributors'),
-      TextSourceAttribution('CARTO'),
+      if (_kCartoApiKey.isNotEmpty) TextSourceAttribution('CARTO'),
     ],
   );
 }
