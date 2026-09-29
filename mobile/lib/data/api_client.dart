@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -7,6 +9,22 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 const String kApiBaseUrl =
     String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8000');
 
+/// Reads the `role` claim out of a JWT access token without verifying its
+/// signature — the backend is the actual authority on role, this is purely
+/// so the UI can show/hide admin-only actions (e.g. walk-mode) without an
+/// extra round trip. Never trust this for anything security-sensitive.
+String? decodeRoleFromJwt(String token) {
+  try {
+    final parts = token.split('.');
+    if (parts.length != 3) return null;
+    final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+    final map = jsonDecode(payload) as Map<String, dynamic>;
+    return map['role'] as String?;
+  } catch (_) {
+    return null;
+  }
+}
+
 class ApiClient {
   ApiClient._(this.dio, this._storage);
 
@@ -15,6 +33,7 @@ class ApiClient {
 
   static const _accessKey = 'access_token';
   static const _refreshKey = 'refresh_token';
+  static const _roleKey = 'role';
 
   factory ApiClient.create() {
     const storage = FlutterSecureStorage();
@@ -64,10 +83,10 @@ class ApiClient {
         '/auth/refresh',
         data: {'refresh_token': refresh},
       );
-      await saveTokens(
-        resp.data['access_token'] as String,
-        resp.data['refresh_token'] as String,
-      );
+      final access = resp.data['access_token'] as String;
+      await saveTokens(access, resp.data['refresh_token'] as String);
+      final role = decodeRoleFromJwt(access);
+      if (role != null) await saveRole(role);
       return true;
     } catch (_) {
       await clearTokens();
@@ -80,9 +99,16 @@ class ApiClient {
     await _storage.write(key: _refreshKey, value: refresh);
   }
 
+  Future<void> saveRole(String role) async {
+    await _storage.write(key: _roleKey, value: role);
+  }
+
+  Future<String?> getRole() => _storage.read(key: _roleKey);
+
   Future<void> clearTokens() async {
     await _storage.delete(key: _accessKey);
     await _storage.delete(key: _refreshKey);
+    await _storage.delete(key: _roleKey);
   }
 
   Future<bool> hasToken() async =>

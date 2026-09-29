@@ -29,7 +29,9 @@ class TrailMateApp extends ConsumerWidget {
     return MaterialApp(
       title: 'TrailMate',
       debugShowCheckedModeBanner: false,
-      theme: buildTheme(),
+      theme: buildTheme(Brightness.light),
+      darkTheme: buildTheme(Brightness.dark),
+      themeMode: ref.watch(themeModeProvider),
       home: const _AuthGate(),
     );
   }

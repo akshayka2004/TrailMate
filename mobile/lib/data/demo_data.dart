@@ -4,9 +4,28 @@
 // app is fully demoable standalone. Remove reliance on this once the
 // backend + database are live and reachable from first launch.
 
+class DemoAccount {
+  const DemoAccount(this.password, this.role);
+  final String password;
+  final String role;
+}
+
+/// All three seeded roles — matches backend/app/db/seed.py exactly. Each
+/// works offline via AuthApi's demo fallback (see campus_repository.dart),
+/// so the walk-mode role gate (admin/staff-only) is exercisable standalone.
+final Map<String, DemoAccount> kDemoAccounts = {
+  'admin@trailmate.dev': const DemoAccount('Admin@123', 'admin'),
+  'staff@trailmate.dev': const DemoAccount('Staff@123', 'staff'),
+  'student@trailmate.dev': const DemoAccount('Student@123', 'student'),
+};
+
 const String kDemoEmail = 'admin@trailmate.dev';
 const String kDemoPassword = 'Admin@123';
 const String kDemoToken = 'demo-local-token';
+
+/// A GPS fix within this many metres of the campus center counts as
+/// "on campus" for the home-screen location banner.
+const double kCampusRadiusMeters = 350;
 
 final Map<String, dynamic> kDemoSnapshot = {
   'version': 0,

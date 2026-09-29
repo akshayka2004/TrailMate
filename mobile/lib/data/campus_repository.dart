@@ -300,19 +300,21 @@ class AuthApi {
         data: {'username': email, 'password': password},
         options: Options(contentType: Headers.formUrlEncodedContentType),
       );
-      await _api.saveTokens(
-        resp.data['access_token'] as String,
-        resp.data['refresh_token'] as String,
-      );
+      final access = resp.data['access_token'] as String;
+      await _api.saveTokens(access, resp.data['refresh_token'] as String);
+      // Role drives UI gating (e.g. admin/staff-only walk-mode); default to
+      // the least-privileged role if the token is somehow missing the claim.
+      await _api.saveRole(decodeRoleFromJwt(access) ?? 'student');
     } on DioException catch (e) {
-      // Backend unreachable (no live DB connected) and demo credentials
-      // were entered — sign in locally so the app remains fully usable
-      // standalone. A real 401/403 from a reachable backend still rejects.
+      // Backend unreachable (no live DB connected) and a seeded demo
+      // account was entered — sign in locally so the app remains fully
+      // usable standalone, with the correct role for that account. A real
+      // 401/403 from a reachable backend still rejects.
       final backendUnreachable = e.type != DioExceptionType.badResponse;
-      if (backendUnreachable &&
-          email.trim() == kDemoEmail &&
-          password == kDemoPassword) {
+      final account = kDemoAccounts[email.trim().toLowerCase()];
+      if (backendUnreachable && account != null && account.password == password) {
         await _api.saveTokens(kDemoToken, kDemoToken);
+        await _api.saveRole(account.role);
         return;
       }
       rethrow;

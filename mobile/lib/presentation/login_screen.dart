@@ -52,7 +52,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.palette;
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          Consumer(
+            builder: (context, ref, _) {
+              final mode = ref.watch(themeModeProvider);
+              final isDark = mode == ThemeMode.dark;
+              return IconButton(
+                tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+                icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+                onPressed: () => ref.read(themeModeProvider.notifier).state =
+                    isDark ? ThemeMode.light : ThemeMode.dark,
+              );
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -83,10 +102,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 4),
-                    const Text(
+                    Text(
                       'Campus navigation',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white54),
+                      style: TextStyle(color: palette.textMuted),
                     ),
                     const SizedBox(height: 32),
                     TextFormField(
@@ -94,9 +113,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       autofillHints: const [AutofillHints.username],
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Email',
-                        prefixIcon: Icon(Icons.mail_outline, color: Colors.white54),
+                        prefixIcon: Icon(Icons.mail_outline, color: palette.textMuted),
                       ),
                       validator: (v) =>
                           (v == null || v.trim().isEmpty) ? 'Email is required' : null,
@@ -112,11 +131,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       decoration: InputDecoration(
                         labelText: 'Password',
                         hintText: kDemoPassword,
-                        prefixIcon: const Icon(Icons.lock_outline, color: Colors.white54),
+                        prefixIcon: Icon(Icons.lock_outline, color: palette.textMuted),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                            color: Colors.white54,
+                            color: palette.textMuted,
                           ),
                           onPressed: () => setState(() => _obscure = !_obscure),
                         ),
@@ -141,22 +160,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     FilledButton(
                       onPressed: _busy ? null : _submit,
                       child: _busy
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 18,
                               width: 18,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: kPrimary,
+                                color: palette.onAccent,
                               ),
                             )
                           : const Text('Sign in'),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'No connection? Signing in with the demo credentials above '
                       'still works — TrailMate falls back to sample campus data.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                      style: TextStyle(color: palette.textFaint, fontSize: 12),
                     ),
                   ],
                 ),

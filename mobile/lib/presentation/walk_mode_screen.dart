@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import '../data/campus_repository.dart';
 import '../domain/models.dart';
+import 'map_tiles.dart';
 import 'providers.dart';
 import 'scanner_screen.dart';
 import 'theme.dart';
@@ -96,7 +99,6 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: kSecondary,
         title: const Text('Checkpoint label'),
         content: TextField(
           controller: controller,
@@ -140,10 +142,23 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
     final admin = ref.read(adminApiProvider);
     final isDemoData = ref.read(campusRepositoryProvider).isDemoData;
     return Scaffold(
-      appBar: AppBar(title: const Text('Admin walk mode')),
+      appBar: AppBar(
+        title: const Text('Admin walk mode'),
+        actions: [
+          IconButton(
+            tooltip: 'View all checkpoints',
+            icon: const Icon(Icons.map_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => CampusOverviewMap(
+                  repo: ref.read(campusRepositoryProvider),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: kAccent,
-        foregroundColor: kPrimary,
         icon: _busy
             ? const SizedBox(
                 height: 18,
@@ -159,7 +174,7 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
           if (isDemoData)
             Container(
               width: double.infinity,
-              color: kSecondary,
+              color: context.palette.surface,
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -197,15 +212,15 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
                 ],
               ),
             ),
-          const Divider(color: kMuted, height: 1),
+          Divider(color: context.palette.divider, height: 1),
           Expanded(
             child: _dropped.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       'Walk the campus and drop checkpoints.\n'
                       'Each is saved with a QR code immediately.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white54),
+                      style: TextStyle(color: context.palette.textMuted),
                     ),
                   )
                 : ListView.builder(
@@ -247,6 +262,96 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Overview map for admins/staff — shows every checkpoint and edge recorded
+/// so far ("till now"), not just the ones dropped in the current walk-mode
+/// session. Read-only: use "Drop checkpoint here" to add new ones.
+///
+/// Labels are shown on tap rather than always-on: with 15+ checkpoints only
+/// tens of metres apart, permanently drawn text labels overlap into an
+/// unreadable smear. Tapping a marker reveals just that one name instead.
+class CampusOverviewMap extends StatefulWidget {
+  const CampusOverviewMap({super.key, required this.repo});
+
+  final CampusRepository repo;
+
+  @override
+  State<CampusOverviewMap> createState() => _CampusOverviewMapState();
+}
+
+class _CampusOverviewMapState extends State<CampusOverviewMap> {
+  Checkpoint? _selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final checkpoints = widget.repo.checkpoints;
+    final center = checkpoints.isEmpty
+        ? widget.repo.campusCenter
+        : LatLng(
+            checkpoints.map((c) => c.lat).reduce((a, b) => a + b) / checkpoints.length,
+            checkpoints.map((c) => c.lng).reduce((a, b) => a + b) / checkpoints.length,
+          );
+
+    return Scaffold(
+      appBar: AppBar(title: Text('All checkpoints (${checkpoints.length})')),
+      body: checkpoints.isEmpty
+          ? Center(
+              child: Text('No checkpoints recorded yet.',
+                  style: TextStyle(color: context.palette.textMuted)),
+            )
+          : Stack(
+              children: [
+                FlutterMap(
+                  options: MapOptions(
+                    initialCenter: center,
+                    initialZoom: 16.5,
+                    onTap: (_, _) => setState(() => _selected = null),
+                  ),
+                  children: [
+                    buildTileLayer(),
+                    MarkerLayer(
+                      markers: [
+                        for (final cp in checkpoints)
+                          Marker(
+                            point: LatLng(cp.lat, cp.lng),
+                            width: 32,
+                            height: 32,
+                            child: GestureDetector(
+                              onTap: () => setState(() => _selected = cp),
+                              child: Icon(Icons.location_on,
+                                  color: _selected?.id == cp.id ? Colors.redAccent : kAccent,
+                                  size: 28),
+                            ),
+                          ),
+                      ],
+                    ),
+                    buildMapAttribution(),
+                  ],
+                ),
+                if (_selected != null)
+                  Positioned(
+                    left: 12,
+                    right: 12,
+                    bottom: 16,
+                    child: Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.location_on, color: kAccent),
+                        title: Text(_selected!.label),
+                        subtitle: Text(
+                          '${_selected!.lat.toStringAsFixed(5)}, ${_selected!.lng.toStringAsFixed(5)}',
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => setState(() => _selected = null),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
     );
   }
 }

@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,9 +8,15 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../domain/models.dart';
+import 'map_tiles.dart';
 import 'providers.dart';
 import 'scanner_screen.dart';
 import 'theme.dart';
+
+/// Tile load failures within this window before we tell the user the
+/// connection looks slow — a single dropped tile is normal, a burst is not.
+const int _kTileErrorThreshold = 4;
+const Duration _kTileErrorWindow = Duration(seconds: 8);
 
 class MapScreen extends ConsumerStatefulWidget {
   const MapScreen({
@@ -26,15 +35,67 @@ class MapScreen extends ConsumerStatefulWidget {
 class _MapScreenState extends ConsumerState<MapScreen> {
   final _mapController = MapController();
   LatLng? _currentPos;
+  double? _heading;
   Checkpoint? _originCheckpoint;
   RouteResult? _route;
   String? _status;
   bool _busy = true;
+  StreamSubscription<Position>? _posSub;
+
+  bool _slowConnection = false;
+  final List<DateTime> _tileErrors = [];
 
   @override
   void initState() {
     super.initState();
     _computeRoute();
+    _startHeadingUpdates();
+  }
+
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _startHeadingUpdates() async {
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) return;
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied ||
+          perm == LocationPermission.deniedForever) {
+        return;
+      }
+      _posSub = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 2,
+        ),
+      ).listen((pos) {
+        if (!mounted) return;
+        setState(() {
+          _currentPos = LatLng(pos.latitude, pos.longitude);
+          // headingAccuracy < 0 means the device could not derive a heading
+          // (e.g. stationary) — keep showing the last known direction.
+          if (pos.headingAccuracy >= 0) _heading = pos.heading;
+        });
+      });
+    } catch (_) {
+      // Live heading is a nice-to-have; the static origin marker still works.
+    }
+  }
+
+  void _onTileError() {
+    final now = DateTime.now();
+    _tileErrors.add(now);
+    _tileErrors.removeWhere((t) => now.difference(t) > _kTileErrorWindow);
+    if (_tileErrors.length >= _kTileErrorThreshold && !_slowConnection) {
+      setState(() => _slowConnection = true);
+    }
   }
 
   Future<LatLng?> _tryGetPosition() async {
@@ -157,8 +218,6 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     return Scaffold(
       appBar: AppBar(title: Text('To ${widget.destinationLabel}')),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: kAccent,
-        foregroundColor: kPrimary,
         icon: const Icon(Icons.qr_code_scanner),
         label: const Text('Scan checkpoint'),
         onPressed: _scanToConfirm,
@@ -172,11 +231,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               initialZoom: 17,
             ),
             children: [
-              TileLayer(
-                urlTemplate:
-                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'in.saintgits.trailmate',
-              ),
+              buildTileLayer(onTileError: _onTileError),
               if (polyPoints.length > 1)
                 PolylineLayer(
                   polylines: [
@@ -196,7 +251,13 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                   if (_currentPos != null)
                     Marker(
                       point: _currentPos!,
-                      child: const Icon(Icons.my_location, color: kAccent),
+                      child: _heading != null
+                          ? Transform.rotate(
+                              angle: _heading! * math.pi / 180,
+                              child: const Icon(Icons.navigation,
+                                  color: kAccent, size: 30),
+                            )
+                          : const Icon(Icons.my_location, color: kAccent),
                     ),
                   if (_originCheckpoint != null && _currentPos == null)
                     Marker(
@@ -206,17 +267,41 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                     ),
                 ],
               ),
+              buildMapAttribution(),
             ],
           ),
           if (_busy)
             const Center(child: CircularProgressIndicator()),
+          if (_slowConnection)
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 12,
+              child: Card(
+                color: Colors.orange.shade900,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
+                    children: [
+                      Icon(Icons.signal_wifi_bad_outlined, color: Colors.white),
+                      SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Slow connection — map tiles are taking a while to load.',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           if (route != null)
             Positioned(
               left: 12,
               right: 12,
               bottom: 88,
               child: Card(
-                color: kSecondary,
                 child: Padding(
                   padding: const EdgeInsets.all(14),
                   child: Row(
@@ -228,7 +313,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                           '${route.steps.length} stops · '
                           '${route.totalDistanceMeters.round()} m · '
                           '${(route.totalTimeSeconds / 60).ceil()} min walk',
-                          style: const TextStyle(color: kForeground),
+                          style: TextStyle(color: context.palette.textPrimary),
                         ),
                       ),
                     ],
@@ -242,11 +327,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
               right: 12,
               bottom: 88,
               child: Card(
-                color: kSecondary,
                 child: Padding(
                   padding: const EdgeInsets.all(14),
                   child: Text(_status!,
-                      style: const TextStyle(color: Colors.white70)),
+                      style: TextStyle(color: context.palette.textSoft)),
                 ),
               ),
             ),
