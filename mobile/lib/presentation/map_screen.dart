@@ -72,7 +72,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       }
       _posSub = Geolocator.getPositionStream(
         locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
+          accuracy: LocationAccuracy.best,
           distanceFilter: 2,
         ),
       ).listen((pos) {
@@ -209,6 +209,48 @@ class _MapScreenState extends ConsumerState<MapScreen> {
     }
   }
 
+  Future<void> _recenterToPreciseLocation() async {
+    try {
+      final enabled = await Geolocator.isLocationServiceEnabled();
+      if (!enabled) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Turn on device location to recenter.')),
+          );
+        }
+        return;
+      }
+      var perm = await Geolocator.checkPermission();
+      if (perm == LocationPermission.denied) {
+        perm = await Geolocator.requestPermission();
+      }
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Location permission denied.')),
+          );
+        }
+        return;
+      }
+      // bestForNavigation forces a fresh high-precision fix rather than
+      // reusing whatever the stream last cached — this button's whole job
+      // is "get me the most precise position right now".
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.bestForNavigation),
+      ).timeout(const Duration(seconds: 10));
+      final here = LatLng(pos.latitude, pos.longitude);
+      if (!mounted) return;
+      setState(() => _currentPos = here);
+      _mapController.move(here, 18);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not get a precise location fix.')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final route = _route;
@@ -217,10 +259,23 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text('To ${widget.destinationLabel}')),
-      floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.qr_code_scanner),
-        label: const Text('Scan checkpoint'),
-        onPressed: _scanToConfirm,
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: 'recenterPrecise',
+            tooltip: 'Recenter to precise location',
+            onPressed: _recenterToPreciseLocation,
+            child: const Icon(Icons.my_location),
+          ),
+          const SizedBox(height: 12),
+          FloatingActionButton.extended(
+            heroTag: 'scanCheckpoint',
+            icon: const Icon(Icons.qr_code_scanner),
+            label: const Text('Scan checkpoint'),
+            onPressed: _scanToConfirm,
+          ),
+        ],
       ),
       body: Stack(
         children: [
