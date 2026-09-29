@@ -124,7 +124,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         data: (repo) {
           _checkOnCampus(repo);
-          final hits = repo.search(_query);
+          // Default view (no search yet) lists every building so the user
+          // sees available destinations immediately after login, instead of
+          // a blank "search to navigate" placeholder they have to type past.
+          final hits = _query.isEmpty
+              ? [
+                  for (final b in repo.buildings)
+                    SearchHit(title: b.name, subtitle: 'Building', lat: b.lat, lng: b.lng),
+                ]
+              : repo.search(_query);
           return Column(
             children: [
               if (repo.isDemoData)
@@ -167,20 +175,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
               Expanded(
-                child: _query.isEmpty
-                    ? _Placeholder(count: repo.checkpoints.length)
-                    : hits.isEmpty
-                        ? const _NoResults()
-                        : ListView.separated(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            itemCount: hits.length,
-                            separatorBuilder: (_, _) =>
-                                const Divider(height: 1, indent: 16, endIndent: 16),
-                            itemBuilder: (_, i) => _HitTile(
-                              hit: hits[i],
-                              onTap: () => _navigateTo(repo, hits[i]),
-                            ),
-                          ),
+                child: hits.isEmpty
+                    ? (_query.isEmpty
+                        ? _Placeholder(count: repo.checkpoints.length)
+                        : const _NoResults())
+                    : ListView.separated(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        itemCount: hits.length,
+                        separatorBuilder: (_, _) =>
+                            const Divider(height: 1, indent: 16, endIndent: 16),
+                        itemBuilder: (_, i) => _HitTile(
+                          hit: hits[i],
+                          onTap: () => _navigateTo(repo, hits[i]),
+                        ),
+                      ),
               ),
             ],
           );
