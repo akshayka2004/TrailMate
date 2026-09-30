@@ -6,6 +6,7 @@ from app.schemas.building import BuildingOut
 from app.schemas.checkpoint import CheckpointOut
 from app.schemas.department import DepartmentOut
 from app.schemas.edge import EdgeOut
+from app.schemas.path_segment import PathSegmentOut
 from app.schemas.room import RoomOut
 
 
@@ -15,6 +16,7 @@ class SnapshotGraph(BaseModel):
     rooms: list[RoomOut]
     checkpoints: list[CheckpointOut]
     edges: list[EdgeOut]
+    path_segments: list[PathSegmentOut]
 
 
 class SnapshotOut(BaseModel):

@@ -13,6 +13,7 @@ from app.models import (
     Checkpoint,
     Department,
     Edge,
+    PathSegment,
     Room,
     SyncSnapshot,
 )
@@ -31,12 +32,14 @@ async def build_graph_payload(db: AsyncSession) -> dict:
     rooms = (await db.execute(select(Room))).scalars().all()
     checkpoints = (await db.execute(select(Checkpoint))).scalars().all()
     edges = (await db.execute(select(Edge))).scalars().all()
+    path_segments = (await db.execute(select(PathSegment))).scalars().all()
     return {
         "buildings": buildings,
         "departments": departments,
         "rooms": rooms,
         "checkpoints": checkpoints,
         "edges": edges,
+        "path_segments": path_segments,
     }
 
 
