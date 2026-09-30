@@ -95,9 +95,26 @@ class _ScannerScreenState extends State<ScannerScreen> {
                       children: [
                         const Icon(Icons.error_outline, size: 40, color: kDestructive),
                         const SizedBox(height: 12),
-                        Text('Camera error: ${error.errorCode.name}',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white70)),
+                        Text(
+                          switch (error.errorCode) {
+                            MobileScannerErrorCode.permissionDenied =>
+                              'Camera permission denied — enable it in system settings.',
+                            MobileScannerErrorCode.unsupported =>
+                              'This device has no usable camera for scanning.',
+                            // genericError is CameraX/ML Kit failing to bind a
+                            // camera device — common on emulators without a
+                            // configured webcam, or if another app is holding
+                            // the camera.
+                            MobileScannerErrorCode.genericError =>
+                              'Could not access the camera. On an emulator, '
+                                  'enable a webcam for it in AVD settings; on a '
+                                  'real device, close any other app using the '
+                                  'camera and retry.',
+                            _ => 'Camera error: ${error.errorCode.name}',
+                          },
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white70),
+                        ),
                         const SizedBox(height: 16),
                         OutlinedButton.icon(
                           onPressed: _startScanner,

@@ -39,6 +39,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   Checkpoint? _originCheckpoint;
   RouteResult? _route;
   String? _status;
+  String? _originFallbackNotice;
   bool _busy = true;
   StreamSubscription<Position>? _posSub;
 
@@ -121,14 +122,26 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         perm == LocationPermission.deniedForever) {
       return null;
     }
-    final pos = await Geolocator.getCurrentPosition();
+    // Explicit high accuracy — the platform default can otherwise return a
+    // coarse/stale fix, which was throwing the computed origin checkpoint
+    // off by enough to look like "starting from some other point".
+    final pos = await Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.best),
+    );
     return LatLng(pos.latitude, pos.longitude);
   }
+
+  /// A GPS fix further than this from the nearest known checkpoint means the
+  /// user isn't actually near the campus graph — starting the route there
+  /// anyway would silently pick whichever checkpoint happens to be closest,
+  /// which reads as "the route starts from a random/wrong place".
+  static const double _kMaxOriginSnapMeters = 500;
 
   Future<void> _computeRoute() async {
     setState(() {
       _busy = true;
       _status = 'Locating you…';
+      _originFallbackNotice = null;
     });
     final repo = ref.read(campusRepositoryProvider);
 
@@ -147,6 +160,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       });
       return;
     }
+
+    final snapDistance = repo.haversine(origin, LatLng(originCp.lat, originCp.lng));
+    String? fallbackNotice;
+    if (pos == null) {
+      fallbackNotice = 'Could not get your GPS location — route starts from campus center instead.';
+    } else if (snapDistance > _kMaxOriginSnapMeters) {
+      fallbackNotice =
+          'You\'re ${(snapDistance / 1000).toStringAsFixed(1)} km from the nearest checkpoint '
+          '(${originCp.label}) — route may not reflect your real position.';
+    }
     _originCheckpoint = originCp;
 
     try {
@@ -155,6 +178,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
         _route = route;
         _busy = false;
         _status = null;
+        _originFallbackNotice = fallbackNotice;
       });
       _fitRoute();
     } catch (e) {
@@ -200,6 +224,10 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       _route = route;
       _busy = false;
       _currentPos = LatLng(cp.lat, cp.lng);
+      // Scanning a physical checkpoint's QR is ground truth — any earlier
+      // "route may be inaccurate" warning from a GPS-based guess no longer
+      // applies.
+      _originFallbackNotice = null;
     });
     _fitRoute();
     if (mounted) {
@@ -327,6 +355,28 @@ class _MapScreenState extends ConsumerState<MapScreen> {
           ),
           if (_busy)
             const Center(child: CircularProgressIndicator()),
+          if (_originFallbackNotice != null)
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 12,
+              child: Card(
+                color: Colors.orange.shade900,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_outlined, color: Colors.white),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(_originFallbackNotice!,
+                            style: const TextStyle(color: Colors.white)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           if (_slowConnection)
             Positioned(
               top: 12,
