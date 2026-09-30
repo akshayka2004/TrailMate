@@ -130,6 +130,19 @@ class CampusRepository {
         }
       }
     }
+    // Checkpoints are real navigable points too — a campus with checkpoints
+    // but no buildings/rooms/departments yet (e.g. freshly re-pinned) would
+    // otherwise be completely unsearchable.
+    for (final c in checkpoints) {
+      if (c.label.toLowerCase().contains(q)) {
+        hits.add(SearchHit(
+          title: c.label,
+          subtitle: 'Checkpoint',
+          lat: c.lat,
+          lng: c.lng,
+        ));
+      }
+    }
     return hits;
   }
 

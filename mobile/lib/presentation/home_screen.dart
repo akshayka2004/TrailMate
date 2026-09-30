@@ -124,13 +124,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
         data: (repo) {
           _checkOnCampus(repo);
-          // Default view (no search yet) lists every building so the user
-          // sees available destinations immediately after login, instead of
-          // a blank "search to navigate" placeholder they have to type past.
+          // Default view (no search yet) lists every building AND every
+          // checkpoint so the user sees available destinations immediately
+          // after login — a campus with checkpoints pinned but no buildings
+          // yet (fresh re-pin) would otherwise show nothing at all.
           final hits = _query.isEmpty
               ? [
                   for (final b in repo.buildings)
                     SearchHit(title: b.name, subtitle: 'Building', lat: b.lat, lng: b.lng),
+                  for (final c in repo.checkpoints)
+                    SearchHit(title: c.label, subtitle: 'Checkpoint', lat: c.lat, lng: c.lng),
                 ]
               : repo.search(_query);
           return Column(

@@ -1,6 +1,6 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
 import { Link } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -32,7 +32,19 @@ function dotIcon(color: string) {
 const originIcon = dotIcon("#22c55e");
 const destinationIcon = dotIcon("#ef4444");
 
-const CAMPUS_CENTER: [number, number] = [9.5132, 76.5423];
+// Used only when there are zero checkpoints to average — see campusCenter().
+const FALLBACK_CENTER: [number, number] = [9.5132, 76.5423];
+
+/** Average of all checkpoints — mirrors the mobile app's dynamic
+ * `campusCenter` getter, so this stays correct as checkpoints are re-pinned
+ * instead of drifting from a hardcoded location. */
+function campusCenter(checkpoints: Checkpoint[]): [number, number] {
+  if (checkpoints.length === 0) return FALLBACK_CENTER;
+  const lat = checkpoints.reduce((sum, c) => sum + c.lat, 0) / checkpoints.length;
+  const lng = checkpoints.reduce((sum, c) => sum + c.lng, 0) / checkpoints.length;
+  return [lat, lng];
+}
+
 // Snapping the GPS fix to a checkpoint further than this away would silently
 // mislead the user about where the route actually starts from.
 const MAX_ORIGIN_SNAP_METERS = 500;
@@ -42,6 +54,7 @@ function buildHits(
   buildings: Building[],
   rooms: Room[],
   departments: Department[],
+  checkpoints: Checkpoint[],
 ): SearchHit[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
@@ -74,6 +87,14 @@ function buildHits(
       }
     }
   }
+  // Checkpoints are real navigable points too — a campus with checkpoints
+  // pinned but no buildings/rooms/departments yet would otherwise be
+  // completely unsearchable.
+  for (const c of checkpoints) {
+    if (c.label.toLowerCase().includes(q)) {
+      hits.push({ title: c.label, subtitle: "Checkpoint", lat: c.lat, lng: c.lng });
+    }
+  }
   return hits;
 }
 
@@ -84,6 +105,22 @@ function RecenterOnRoute({ points }: { points: [number, number][] }) {
       map.fitBounds(L.latLngBounds(points), { padding: [48, 48] });
     }
   }, [map, points]);
+  return null;
+}
+
+/** react-leaflet ignores changes to MapContainer's `center` prop after
+ * mount, so once checkpoints load asynchronously (initial render has none)
+ * the map needs an explicit pan to the real campus center. Only does this
+ * once, so it doesn't fight the user's own panning/zooming on later polls. */
+function RecenterOnData({ center, ready }: { center: [number, number]; ready: boolean }) {
+  const map = useMap();
+  const done = useRef(false);
+  useEffect(() => {
+    if (ready && !done.current) {
+      done.current = true;
+      map.setView(center, 17);
+    }
+  }, [map, center, ready]);
   return null;
 }
 
@@ -113,7 +150,15 @@ export function FindPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const hits = buildHits(query, buildings, rooms, departments);
+  // Default view (no search yet) lists every building AND every checkpoint
+  // so available destinations are visible immediately — a campus with
+  // checkpoints pinned but no buildings yet would otherwise show nothing.
+  const hits = query.trim()
+    ? buildHits(query, buildings, rooms, departments, checkpoints)
+    : [
+        ...buildings.map((b) => ({ title: b.name, subtitle: "Building", lat: b.lat, lng: b.lng })),
+        ...checkpoints.map((c) => ({ title: c.label, subtitle: "Checkpoint", lat: c.lat, lng: c.lng })),
+      ];
 
   async function navigateTo(hit: SearchHit) {
     setDestination(hit);
@@ -124,7 +169,8 @@ export function FindPage() {
     setBusy(true);
 
     const pos = await getBrowserLocation();
-    const originPoint = pos ?? { lat: CAMPUS_CENTER[0], lng: CAMPUS_CENTER[1] };
+    const center = campusCenter(checkpoints);
+    const originPoint = pos ?? { lat: center[0], lng: center[1] };
     setOrigin(originPoint);
 
     const originCp = nearestCheckpoint(checkpoints, originPoint.lat, originPoint.lng);
@@ -202,26 +248,26 @@ export function FindPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          {query && (
-            <ul className="flex max-h-[50vh] flex-col gap-1 overflow-auto rounded-xl border border-slate-800">
-              {hits.length === 0 ? (
-                <li className="px-3 py-2 text-sm text-slate-500">No matches</li>
-              ) : (
-                hits.map((hit, i) => (
-                  <li key={i}>
-                    <button
-                      type="button"
-                      onClick={() => navigateTo(hit)}
-                      className="w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-secondary/60"
-                    >
-                      <div className="font-medium">{hit.title}</div>
-                      <div className="text-xs text-slate-500">{hit.subtitle}</div>
-                    </button>
-                  </li>
-                ))
-              )}
-            </ul>
-          )}
+          <ul className="flex max-h-[50vh] flex-col gap-1 overflow-auto rounded-xl border border-slate-800">
+            {hits.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-slate-500">
+                {query ? "No matches" : "No destinations yet"}
+              </li>
+            ) : (
+              hits.map((hit, i) => (
+                <li key={i}>
+                  <button
+                    type="button"
+                    onClick={() => navigateTo(hit)}
+                    className="w-full cursor-pointer px-3 py-2 text-left text-sm hover:bg-secondary/60"
+                  >
+                    <div className="font-medium">{hit.title}</div>
+                    <div className="text-xs text-slate-500">{hit.subtitle}</div>
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
 
           {notice && (
             <div className="rounded-lg border border-orange-800 bg-orange-950/60 px-3 py-2 text-xs text-orange-200">
@@ -250,11 +296,14 @@ export function FindPage() {
 
         <div className="h-[70vh] overflow-hidden rounded-xl border border-slate-800 lg:h-full">
           <MapContainer
-            center={CAMPUS_CENTER}
+            center={FALLBACK_CENTER}
             zoom={17}
             style={{ height: "100%", width: "100%" }}
           >
             <TileLayer attribution={tileAttribution} url={tileUrl} />
+            {polylinePoints.length < 2 && (
+              <RecenterOnData center={campusCenter(checkpoints)} ready={checkpoints.length > 0} />
+            )}
             {polylinePoints.length > 1 && (
               <Polyline positions={polylinePoints} pathOptions={{ color: "#22c55e", weight: 5 }} />
             )}
