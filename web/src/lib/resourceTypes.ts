@@ -39,6 +39,8 @@ export interface Edge {
   distance_meters: number;
   walking_time_estimate_sec: number;
   is_indoor: boolean;
+  // Ordered [lat, lng] waypoints tracing the real walkway, a_id -> b_id.
+  path: [number, number][] | null;
 }
 
 export interface RouteStep {
@@ -54,6 +56,8 @@ export interface RouteResult {
   steps: RouteStep[];
   total_distance_meters: number;
   total_time_seconds: number;
+  // Full point sequence to draw — see backend RouteOut.polyline.
+  polyline: [number, number][];
 }
 
 export interface SearchHit {

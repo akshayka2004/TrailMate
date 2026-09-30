@@ -138,20 +138,37 @@ class RouteResult {
   final List<RouteStep> steps;
   final double totalDistanceMeters;
   final int totalTimeSeconds;
+  // Full (lat, lng) point sequence to draw — includes each edge's stored
+  // waypoints where present, so the line hugs real paths instead of
+  // jumping straight between checkpoints. Falls back to the straight-line
+  // checkpoint sequence (same as `steps`) when no edge has waypoints.
+  final List<(double, double)> polyline;
 
   RouteResult({
     required this.steps,
     required this.totalDistanceMeters,
     required this.totalTimeSeconds,
+    required this.polyline,
   });
 
-  factory RouteResult.fromJson(Map<String, dynamic> j) => RouteResult(
-        steps: (j['steps'] as List)
-            .map((e) => RouteStep.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        totalDistanceMeters: (j['total_distance_meters'] as num).toDouble(),
-        totalTimeSeconds: j['total_time_seconds'] as int,
-      );
+  factory RouteResult.fromJson(Map<String, dynamic> j) {
+    final steps = (j['steps'] as List)
+        .map((e) => RouteStep.fromJson(e as Map<String, dynamic>))
+        .toList();
+    final rawPolyline = j['polyline'] as List?;
+    final polyline = rawPolyline == null
+        ? [for (final s in steps) (s.lat, s.lng)]
+        : [
+            for (final p in rawPolyline)
+              ((p[0] as num).toDouble(), (p[1] as num).toDouble()),
+          ];
+    return RouteResult(
+      steps: steps,
+      totalDistanceMeters: (j['total_distance_meters'] as num).toDouble(),
+      totalTimeSeconds: j['total_time_seconds'] as int,
+      polyline: polyline,
+    );
+  }
 }
 
 /// A searchable destination resolved to its nearest checkpoint.

@@ -191,8 +191,16 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   void _fitRoute() {
     final route = _route;
-    if (route == null || route.steps.isEmpty) return;
-    final pts = route.steps.map((s) => LatLng(s.lat, s.lng)).toList();
+    if (route == null || route.polyline.isEmpty) return;
+    final pts = route.polyline.map((p) => LatLng(p.$1, p.$2)).toList();
+    // A single-step route (already at the destination checkpoint — e.g.
+    // standing right next to it) gives fromPoints a zero-area bounds, which
+    // flutter_map's bounds-fit zoom math turns into an infinite/NaN zoom and
+    // crashes. Just center on the one point instead of fitting a box.
+    if (pts.length < 2) {
+      _mapController.move(pts.first, 18);
+      return;
+    }
     final bounds = LatLngBounds.fromPoints(pts);
     _mapController.fitCamera(
       CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)),
@@ -282,8 +290,9 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final route = _route;
-    final polyPoints =
-        route?.steps.map((s) => LatLng(s.lat, s.lng)).toList() ?? <LatLng>[];
+    // route.polyline includes each edge's real-path waypoints (when an
+    // admin has drawn them) instead of jumping straight between checkpoints.
+    final polyPoints = route?.polyline.map((p) => LatLng(p.$1, p.$2)).toList() ?? <LatLng>[];
 
     return Scaffold(
       appBar: AppBar(title: Text('To ${widget.destinationLabel}')),
@@ -415,9 +424,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          '${route.steps.length} stops · '
-                          '${route.totalDistanceMeters.round()} m · '
-                          '${(route.totalTimeSeconds / 60).ceil()} min walk',
+                          route.steps.length < 2
+                              ? 'You\'re already at this destination.'
+                              : '${route.steps.length} stops · '
+                                  '${route.totalDistanceMeters.round()} m · '
+                                  '${(route.totalTimeSeconds / 60).ceil()} min walk',
                           style: TextStyle(color: context.palette.textPrimary),
                         ),
                       ),

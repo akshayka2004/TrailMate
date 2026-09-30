@@ -25,8 +25,10 @@ class CampusRepository {
   List<Room> rooms = [];
   List<Department> departments = [];
   List<Checkpoint> checkpoints = [];
-  // adjacency: checkpointId -> list of (neighborId, distance, timeSec)
-  final Map<int, List<(int, double, int)>> _adj = {};
+  // adjacency: checkpointId -> list of (neighborId, distance, timeSec, path).
+  // `path` is the edge's waypoints already oriented from this node toward
+  // the neighbor (forward for the a-side entry, reversed for the b-side).
+  final Map<int, List<(int, double, int, List<(double, double)>?)>> _adj = {};
   bool loadedFromCache = false;
   bool isDemoData = false;
 
@@ -83,8 +85,15 @@ class CampusRepository {
       final b = m['checkpoint_b_id'] as int;
       final dist = (m['distance_meters'] as num).toDouble();
       final t = m['walking_time_estimate_sec'] as int;
-      _adj[a]?.add((b, dist, t));
-      _adj[b]?.add((a, dist, t)); // undirected
+      final rawPath = m['path'] as List?;
+      final forwardPath = rawPath == null
+          ? null
+          : [
+              for (final p in rawPath)
+                ((p[0] as num).toDouble(), (p[1] as num).toDouble()),
+            ];
+      _adj[a]?.add((b, dist, t, forwardPath));
+      _adj[b]?.add((a, dist, t, forwardPath?.reversed.toList())); // undirected
     }
   }
 
@@ -187,6 +196,7 @@ class CampusRepository {
         steps: [RouteStep(checkpointId: c.id, label: c.label, lat: c.lat, lng: c.lng)],
         totalDistanceMeters: 0,
         totalTimeSeconds: 0,
+        polyline: [(c.lat, c.lng)],
       );
     }
 
@@ -208,7 +218,8 @@ class CampusRepository {
       final u = current.$2;
       if (u == toId) break;
       if (current.$1 > dist[u]!) continue;
-      for (final (v, w, t) in _adj[u] ?? const <(int, double, int)>[]) {
+      for (final (v, w, t, _) in _adj[u] ??
+          const <(int, double, int, List<(double, double)>?)>[]) {
         final nd = dist[u]! + w;
         if (nd < dist[v]!) {
           pq.remove((dist[v]!, v));
@@ -235,10 +246,26 @@ class CampusRepository {
       return RouteStep(checkpointId: c.id, label: c.label, lat: c.lat, lng: c.lng);
     }).toList();
 
+    final polyline = <(double, double)>[];
+    for (var i = 0; i < path.length; i++) {
+      final c = cpById[path[i]]!;
+      if (i == 0) {
+        polyline.add((c.lat, c.lng));
+        continue;
+      }
+      final prevId = path[i - 1];
+      final edgePath = _adj[prevId]
+          ?.firstWhere((e) => e.$1 == path[i], orElse: () => (0, 0, 0, null))
+          .$4;
+      if (edgePath != null) polyline.addAll(edgePath);
+      polyline.add((c.lat, c.lng));
+    }
+
     return RouteResult(
       steps: steps,
       totalDistanceMeters: (dist[toId]! * 100).roundToDouble() / 100,
       totalTimeSeconds: timeTo[toId]!,
+      polyline: polyline,
     );
   }
 
@@ -273,8 +300,8 @@ class CampusRepository {
     bool indoor = false,
   }) {
     final t = (distanceMeters / 1.4).ceil().clamp(1, 1 << 30);
-    (_adj[aId] ??= []).add((bId, distanceMeters, t));
-    (_adj[bId] ??= []).add((aId, distanceMeters, t));
+    (_adj[aId] ??= []).add((bId, distanceMeters, t, null));
+    (_adj[bId] ??= []).add((aId, distanceMeters, t, null));
   }
 
   Checkpoint? checkpointByPayload(String payload) {

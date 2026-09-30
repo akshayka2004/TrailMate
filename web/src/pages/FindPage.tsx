@@ -212,10 +212,11 @@ export function FindPage() {
     setBusy(false);
   }
 
-  const straightLinePoints: [number, number][] = route
-    ? route.steps.map((s) => [s.lat, s.lng])
-    : [];
-  const polylinePoints = walkingPath ?? straightLinePoints;
+  // route.polyline already includes each edge's real-path waypoints where an
+  // admin has drawn them; walkingPath (OpenRouteService) takes priority when
+  // configured since it follows the actual OSM path network.
+  const graphPolyline: [number, number][] = route?.polyline ?? [];
+  const polylinePoints = walkingPath ?? graphPolyline;
 
   return (
     <main className="flex min-h-dvh flex-col bg-background text-foreground">
@@ -283,8 +284,10 @@ export function FindPage() {
             <div className="rounded-lg border border-slate-800 bg-secondary/40 px-3 py-3 text-sm">
               <div className="font-medium">{destination?.title}</div>
               <div className="text-xs text-slate-400">
-                {route.steps.length} stops · {Math.round(route.total_distance_meters)} m ·{" "}
-                {Math.ceil(route.total_time_seconds / 60)} min walk
+                {route.steps.length < 2
+                  ? "You're already at this destination."
+                  : `${route.steps.length} stops · ${Math.round(route.total_distance_meters)} m · ` +
+                    `${Math.ceil(route.total_time_seconds / 60)} min walk`}
               </div>
               {walkingPath && (
                 <div className="mt-1 text-xs text-accent">Path-following route (OpenRouteService)</div>
