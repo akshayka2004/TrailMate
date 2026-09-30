@@ -79,6 +79,16 @@ class _WalkModeScreenState extends ConsumerState<WalkModeScreen> {
         );
         await admin.connectEdge(prev.id, cp.id, dist);
       }
+
+      // AdminApi's live-backend success path doesn't touch the in-memory
+      // repo (only the offline/demo fallback does) — without this, the
+      // freshly-created checkpoint wouldn't show up anywhere (overview map,
+      // student search) until the app restarted. Refetch so it's live
+      // immediately, and invalidate campusLoadProvider so HomeScreen (which
+      // watches that provider, not this repo instance directly) rebuilds.
+      if (!repo.isDemoData) await repo.load();
+      ref.invalidate(campusLoadProvider);
+
       setState(() {
         _dropped.add(cp);
         _busy = false;

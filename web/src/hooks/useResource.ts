@@ -2,17 +2,29 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
+  type UseQueryOptions,
 } from "@tanstack/react-query";
 import { api } from "../lib/api";
 
-/** Generic CRUD hooks for a REST collection at `/{resource}`. */
-export function useList<T>(resource: string) {
+/**
+ * Generic CRUD hooks for a REST collection at `/{resource}`.
+ *
+ * `options.refetchInterval` lets a specific page poll for changes made from
+ * elsewhere (e.g. the student /find page polling while an admin on a
+ * different device/browser is adding checkpoints) — admin pages don't pass
+ * this, so they stay plain fetch-on-mount/on-invalidate.
+ */
+export function useList<T>(
+  resource: string,
+  options?: Pick<UseQueryOptions<T[]>, "refetchInterval">,
+) {
   return useQuery({
     queryKey: [resource],
     queryFn: async () => {
       const { data } = await api.get<T[]>(`/${resource}`);
       return data;
     },
+    ...options,
   });
 }
 

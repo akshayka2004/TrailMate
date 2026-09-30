@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
+import { BackButton } from "../components/ui";
 import { useLogin } from "../hooks/useAuth";
 
 const schema = z.object({
@@ -27,9 +28,12 @@ export function LoginPage() {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-background px-4 text-foreground">
       <div className="w-full max-w-sm rounded-xl border border-slate-700 bg-secondary/60 p-8 shadow-xl">
-        <h1 className="mb-1 font-heading text-2xl font-semibold tracking-tight">
-          TrailMate
-        </h1>
+        <div className="mb-1 flex items-center gap-2">
+          <BackButton fallback="/find" />
+          <h1 className="font-heading text-2xl font-semibold tracking-tight">
+            TrailMate
+          </h1>
+        </div>
         <p className="mb-1 text-sm text-slate-400">Admin portal sign in</p>
         <p className="mb-6 text-xs text-slate-500">
           Demo mode: admin@trailmate.dev / Admin@123

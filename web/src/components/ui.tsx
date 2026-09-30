@@ -1,17 +1,39 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
+
+export function BackButton({ fallback = "/admin" }: { fallback?: string }) {
+  const navigate = useNavigate();
+  return (
+    <button
+      type="button"
+      onClick={() => (window.history.length > 1 ? navigate(-1) : navigate(fallback))}
+      aria-label="Go back"
+      className="cursor-pointer rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-800 hover:text-foreground"
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
 
 export function PageHeader({
   title,
   action,
+  showBack = true,
 }: {
   title: string;
   action?: ReactNode;
+  showBack?: boolean;
 }) {
   return (
     <header className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
-      <h1 className="font-heading text-xl font-semibold tracking-tight">
-        {title}
-      </h1>
+      <div className="flex items-center gap-2">
+        {showBack && <BackButton />}
+        <h1 className="font-heading text-xl font-semibold tracking-tight">
+          {title}
+        </h1>
+      </div>
       {action}
     </header>
   );

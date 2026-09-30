@@ -175,20 +175,35 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
               Expanded(
-                child: hits.isEmpty
-                    ? (_query.isEmpty
-                        ? _Placeholder(count: repo.checkpoints.length)
-                        : const _NoResults())
-                    : ListView.separated(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        itemCount: hits.length,
-                        separatorBuilder: (_, _) =>
-                            const Divider(height: 1, indent: 16, endIndent: 16),
-                        itemBuilder: (_, i) => _HitTile(
-                          hit: hits[i],
-                          onTap: () => _navigateTo(repo, hits[i]),
+                child: RefreshIndicator(
+                  onRefresh: () async {
+                    ref.invalidate(campusLoadProvider);
+                    await ref.read(campusLoadProvider.future);
+                  },
+                  child: hits.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: [
+                            SizedBox(
+                              height: 400,
+                              child: _query.isEmpty
+                                  ? _Placeholder(count: repo.checkpoints.length)
+                                  : const _NoResults(),
+                            ),
+                          ],
+                        )
+                      : ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.only(bottom: 8),
+                          itemCount: hits.length,
+                          separatorBuilder: (_, _) =>
+                              const Divider(height: 1, indent: 16, endIndent: 16),
+                          itemBuilder: (_, i) => _HitTile(
+                            hit: hits[i],
+                            onTap: () => _navigateTo(repo, hits[i]),
+                          ),
                         ),
-                      ),
+                ),
               ),
             ],
           );

@@ -3,7 +3,8 @@ import "leaflet/dist/leaflet.css";
 import { useMemo, useState } from "react";
 import { MapContainer, Marker, Polyline, TileLayer, useMap } from "react-leaflet";
 import { Link } from "react-router-dom";
-import { inputClass } from "../components/ui";
+import { useQueryClient } from "@tanstack/react-query";
+import { BackButton, inputClass } from "../components/ui";
 import { api } from "../lib/api";
 import { tileAttribution, tileUrl } from "../lib/mapTiles";
 import { fetchWalkingPath, haversineMeters, nearestCheckpoint } from "../lib/routing";
@@ -86,11 +87,22 @@ function RecenterOnRoute({ points }: { points: [number, number][] }) {
   return null;
 }
 
+function refreshAll(qc: ReturnType<typeof useQueryClient>) {
+  for (const key of ["buildings", "rooms", "departments", "checkpoints"]) {
+    qc.invalidateQueries({ queryKey: [key] });
+  }
+}
+
 export function FindPage() {
-  const { data: buildings = [] } = useList<Building>("buildings");
-  const { data: rooms = [] } = useList<Room>("rooms");
-  const { data: departments = [] } = useList<Department>("departments");
-  const { data: checkpoints = [] } = useList<Checkpoint>("checkpoints");
+  const qc = useQueryClient();
+  // Poll while this page is open — an admin adding checkpoints is almost
+  // always a different browser/device, so there's no shared cache to
+  // invalidate into. 15s keeps new pins showing up without a manual reload.
+  const pollOptions = { refetchInterval: 15000 };
+  const { data: buildings = [] } = useList<Building>("buildings", pollOptions);
+  const { data: rooms = [] } = useList<Room>("rooms", pollOptions);
+  const { data: departments = [] } = useList<Department>("departments", pollOptions);
+  const { data: checkpoints = [] } = useList<Checkpoint>("checkpoints", pollOptions);
 
   const [query, setQuery] = useState("");
   const [destination, setDestination] = useState<SearchHit | null>(null);
@@ -162,12 +174,24 @@ export function FindPage() {
   return (
     <main className="flex min-h-dvh flex-col bg-background text-foreground">
       <header className="flex items-center justify-between border-b border-slate-800 px-6 py-4">
-        <h1 className="font-heading text-xl font-semibold tracking-tight">
-          TrailMate — Find your way
-        </h1>
-        <Link to="/login" className="text-xs text-slate-500 hover:text-slate-300">
-          Admin sign in
-        </Link>
+        <div className="flex items-center gap-2">
+          <BackButton fallback="/find" />
+          <h1 className="font-heading text-xl font-semibold tracking-tight">
+            TrailMate — Find your way
+          </h1>
+        </div>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => refreshAll(qc)}
+            className="cursor-pointer text-xs text-slate-500 hover:text-slate-300"
+          >
+            Refresh
+          </button>
+          <Link to="/login" className="text-xs text-slate-500 hover:text-slate-300">
+            Admin sign in
+          </Link>
+        </div>
       </header>
 
       <div className="grid flex-1 grid-cols-1 gap-4 p-6 lg:grid-cols-[320px_1fr]">
