@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { LocationPicker } from "../components/LocationPicker";
 import { Modal } from "../components/Modal";
 import { Button, Field, PageHeader, inputClass } from "../components/ui";
 import {
@@ -131,6 +132,7 @@ export function BuildingsPage() {
         <Modal
           title={editing ? "Edit building" : "New building"}
           onClose={() => setOpen(false)}
+          maxWidthClass="max-w-lg"
         >
           <div className="flex flex-col gap-4">
             <Field label="Name">
@@ -146,6 +148,18 @@ export function BuildingsPage() {
                 value={form.description}
                 onChange={(e) =>
                   setForm({ ...form, description: e.target.value })
+                }
+              />
+            </Field>
+            <Field label="Location — click the map to drop a pin">
+              <LocationPicker
+                value={
+                  form.lat && form.lng && !Number.isNaN(Number(form.lat))
+                    ? { lat: Number(form.lat), lng: Number(form.lng) }
+                    : null
+                }
+                onChange={(lat, lng) =>
+                  setForm({ ...form, lat: lat.toFixed(6), lng: lng.toFixed(6) })
                 }
               />
             </Field>

@@ -1,7 +1,4 @@
 import L from "leaflet";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import "leaflet/dist/leaflet.css";
 import { useState } from "react";
 import {
@@ -18,12 +15,19 @@ import { tileAttribution, tileUrl } from "../lib/mapTiles";
 import type { Building, Checkpoint } from "../lib/resourceTypes";
 import { useQueryClient } from "@tanstack/react-query";
 
-// Vite bundles marker images as URLs; rewire Leaflet's default icon paths.
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
+// Plain colored dots instead of Leaflet's default marker+shadow images —
+// avoids a Vite/react-leaflet asset-path bundling quirk that otherwise
+// serves a malformed doubled URL for the default icon.
+function dotIcon(color: string) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="width:16px;height:16px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.5)"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+}
+const checkpointIcon = dotIcon("#22c55e");
+const pendingIcon = dotIcon("#f59e0b");
 
 const CAMPUS_CENTER: [number, number] = [9.5132, 76.5423];
 
@@ -87,7 +91,7 @@ export function CheckpointsPage() {
             <TileLayer attribution={tileAttribution} url={tileUrl} />
             <ClickToPlace onPick={placeCheckpoint} />
             {checkpoints?.map((c) => (
-              <Marker key={c.id} position={[c.lat, c.lng]}>
+              <Marker key={c.id} position={[c.lat, c.lng]} icon={checkpointIcon}>
                 <Popup>
                   <strong>{c.label}</strong>
                   <br />
@@ -95,6 +99,9 @@ export function CheckpointsPage() {
                 </Popup>
               </Marker>
             ))}
+            {pending && (
+              <Marker position={[pending.lat, pending.lng]} icon={pendingIcon} />
+            )}
           </MapContainer>
         </div>
 

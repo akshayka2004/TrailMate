@@ -5,10 +5,12 @@ export function Modal({
   title,
   onClose,
   children,
+  maxWidthClass = "max-w-md",
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  maxWidthClass?: string;
 }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -25,7 +27,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="w-full max-w-md rounded-xl border border-slate-700 bg-secondary p-6 shadow-2xl"
+        className={`w-full ${maxWidthClass} rounded-xl border border-slate-700 bg-secondary p-6 shadow-2xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="mb-4 font-heading text-lg font-semibold">{title}</h2>
