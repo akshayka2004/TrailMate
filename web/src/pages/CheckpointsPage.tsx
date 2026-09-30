@@ -13,7 +13,8 @@ import {
 } from "react-leaflet";
 import { Button, PageHeader, inputClass } from "../components/ui";
 import { useCreate, useList, useRemove } from "../hooks/useResource";
-import { mockGenerateQr } from "../lib/mockData";
+import { api } from "../lib/api";
+import { tileAttribution, tileUrl } from "../lib/mapTiles";
 import type { Building, Checkpoint } from "../lib/resourceTypes";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -69,8 +70,7 @@ export function CheckpointsPage() {
   }
 
   async function generateQr(id: number) {
-    // TEMPORARY: mock QR generation (backend unreachable). See mockData.ts.
-    mockGenerateQr(id);
+    await api.post(`/checkpoints/${id}/qr`);
     qc.invalidateQueries({ queryKey: ["checkpoints"] });
   }
 
@@ -84,10 +84,7 @@ export function CheckpointsPage() {
             zoom={17}
             style={{ height: "100%", width: "100%" }}
           >
-            <TileLayer
-              attribution='&copy; OpenStreetMap contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            />
+            <TileLayer attribution={tileAttribution} url={tileUrl} />
             <ClickToPlace onPick={placeCheckpoint} />
             {checkpoints?.map((c) => (
               <Marker key={c.id} position={[c.lat, c.lng]}>

@@ -21,7 +21,7 @@ export function LoginPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   const onSubmit = handleSubmit((values) => {
-    login.mutate(values, { onSuccess: () => navigate("/", { replace: true }) });
+    login.mutate(values, { onSuccess: () => navigate("/admin", { replace: true }) });
   });
 
   return (

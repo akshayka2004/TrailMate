@@ -40,3 +40,25 @@ export interface Edge {
   walking_time_estimate_sec: number;
   is_indoor: boolean;
 }
+
+export interface RouteStep {
+  checkpoint_id: number;
+  label: string;
+  lat: number;
+  lng: number;
+}
+
+export interface RouteResult {
+  from_id: number;
+  to_id: number;
+  steps: RouteStep[];
+  total_distance_meters: number;
+  total_time_seconds: number;
+}
+
+export interface SearchHit {
+  title: string;
+  subtitle: string;
+  lat: number;
+  lng: number;
+}

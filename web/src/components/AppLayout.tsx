@@ -2,11 +2,11 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../stores/auth";
 
 const NAV = [
-  { to: "/buildings", label: "Buildings" },
-  { to: "/departments", label: "Departments" },
-  { to: "/rooms", label: "Rooms" },
-  { to: "/checkpoints", label: "Checkpoints" },
-  { to: "/graph", label: "Route graph" },
+  { to: "/admin/buildings", label: "Buildings" },
+  { to: "/admin/departments", label: "Departments" },
+  { to: "/admin/rooms", label: "Rooms" },
+  { to: "/admin/checkpoints", label: "Checkpoints" },
+  { to: "/admin/graph", label: "Route graph" },
 ];
 
 export function AppLayout() {
@@ -41,6 +41,9 @@ export function AppLayout() {
           ))}
         </nav>
         <div className="border-t border-slate-800 px-4 py-3">
+          <NavLink to="/find" className="mb-2 block text-xs text-slate-500 hover:text-foreground">
+            View student search page →
+          </NavLink>
           <p className="truncate text-xs text-slate-400">{user?.email}</p>
           <span className="text-xs text-accent">{user?.role}</span>
           <button

@@ -5,6 +5,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { BuildingsPage } from "./pages/BuildingsPage";
 import { CheckpointsPage } from "./pages/CheckpointsPage";
 import { DepartmentsPage } from "./pages/DepartmentsPage";
+import { FindPage } from "./pages/FindPage";
 import { GraphPage } from "./pages/GraphPage";
 import { LoginPage } from "./pages/LoginPage";
 import { RoomsPage } from "./pages/RoomsPage";
@@ -18,22 +19,25 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<Navigate to="/find" replace />} />
+          <Route path="/find" element={<FindPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route
+            path="/admin"
             element={
               <ProtectedRoute>
                 <AppLayout />
               </ProtectedRoute>
             }
           >
-            <Route path="/" element={<Navigate to="/buildings" replace />} />
-            <Route path="/buildings" element={<BuildingsPage />} />
-            <Route path="/departments" element={<DepartmentsPage />} />
-            <Route path="/rooms" element={<RoomsPage />} />
-            <Route path="/checkpoints" element={<CheckpointsPage />} />
-            <Route path="/graph" element={<GraphPage />} />
+            <Route index element={<Navigate to="/admin/buildings" replace />} />
+            <Route path="buildings" element={<BuildingsPage />} />
+            <Route path="departments" element={<DepartmentsPage />} />
+            <Route path="rooms" element={<RoomsPage />} />
+            <Route path="checkpoints" element={<CheckpointsPage />} />
+            <Route path="graph" element={<GraphPage />} />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/find" replace />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
