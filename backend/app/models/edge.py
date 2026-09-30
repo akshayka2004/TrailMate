@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, UniqueConstraint
+from sqlalchemy import ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -20,3 +20,8 @@ class Edge(Base):
     distance_meters: Mapped[float]
     walking_time_estimate_sec: Mapped[int]
     is_indoor: Mapped[bool] = mapped_column(default=False)
+    # Ordered [lat, lng] waypoints tracing the real walkway from checkpoint_a
+    # to checkpoint_b — lets the drawn route hug actual paths instead of a
+    # straight line between the two checkpoints. None/empty = no shape data,
+    # callers fall back to the straight line.
+    path: Mapped[list[list[float]] | None] = mapped_column(JSON, default=None)

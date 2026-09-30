@@ -42,4 +42,5 @@ async def get_route(
         ],
         total_distance_meters=result.total_distance_meters,
         total_time_seconds=result.total_time_seconds,
+        polyline=result.polyline,
     )

@@ -31,6 +31,7 @@ class RouteResult:
     steps: list[RouteStep]
     total_distance_meters: float
     total_time_seconds: int
+    polyline: list[list[float]]
 
 
 def _haversine_m(a: Checkpoint, b: Checkpoint) -> float:
@@ -61,6 +62,12 @@ async def build_graph(db: AsyncSession) -> tuple[nx.Graph, dict[int, Checkpoint]
             edge.checkpoint_b_id,
             distance=edge.distance_meters,
             time=edge.walking_time_estimate_sec,
+            # Kept so the polyline builder knows which stored direction
+            # (a -> b) `path` is relative to, regardless of which way this
+            # particular route travels the edge.
+            a_id=edge.checkpoint_a_id,
+            b_id=edge.checkpoint_b_id,
+            path=edge.path,
         )
     return graph, checkpoints
 
@@ -80,6 +87,7 @@ def find_route(
             steps=[RouteStep(cp.id, cp.label, cp.lat, cp.lng)],
             total_distance_meters=0.0,
             total_time_seconds=0,
+            polyline=[[cp.lat, cp.lng]],
         )
 
     def heuristic(u: int, v: int) -> float:
@@ -96,18 +104,32 @@ def find_route(
         raise UnknownCheckpointError
 
     steps: list[RouteStep] = []
+    polyline: list[list[float]] = []
     total_distance = 0.0
     total_time = 0
     for i, node_id in enumerate(node_path):
         cp = checkpoints[node_id]
         steps.append(RouteStep(cp.id, cp.label, cp.lat, cp.lng))
-        if i > 0:
-            edge_data = graph.get_edge_data(node_path[i - 1], node_id)
-            total_distance += edge_data["distance"]
-            total_time += edge_data["time"]
+        if i == 0:
+            polyline.append([cp.lat, cp.lng])
+            continue
+
+        prev_id = node_path[i - 1]
+        edge_data = graph.get_edge_data(prev_id, node_id)
+        total_distance += edge_data["distance"]
+        total_time += edge_data["time"]
+
+        path = edge_data.get("path")
+        if path:
+            # Stored relative to a_id -> b_id; reverse if this leg travels
+            # the edge the other way.
+            oriented = path if prev_id == edge_data["a_id"] else list(reversed(path))
+            polyline.extend(oriented)
+        polyline.append([cp.lat, cp.lng])
 
     return RouteResult(
         steps=steps,
         total_distance_meters=round(total_distance, 2),
         total_time_seconds=total_time,
+        polyline=polyline,
     )

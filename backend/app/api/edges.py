@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import require_role
 from app.db.session import get_db
 from app.models import Checkpoint, Edge
-from app.schemas.edge import EdgeCreate, EdgeOut
+from app.schemas.edge import EdgeCreate, EdgeOut, EdgeUpdate
 
 router = APIRouter(prefix="/edges", tags=["edges"])
 
@@ -37,6 +37,11 @@ async def create_edge(body: EdgeCreate, db: Annotated[AsyncSession, Depends(get_
 
     # Undirected graph: reject a duplicate regardless of endpoint order.
     lo, hi = sorted((body.checkpoint_a_id, body.checkpoint_b_id))
+    # path is stored relative to (a=lo, b=hi) — reverse it if the caller's
+    # original a/b order got swapped above.
+    path = body.path
+    if path is not None and body.checkpoint_a_id != lo:
+        path = list(reversed(path))
     dupe = await db.execute(
         select(Edge).where(
             or_(
@@ -56,6 +61,7 @@ async def create_edge(body: EdgeCreate, db: Annotated[AsyncSession, Depends(get_
         distance_meters=body.distance_meters,
         walking_time_estimate_sec=body.walking_time_estimate_sec,
         is_indoor=body.is_indoor,
+        path=path,
     )
     db.add(edge)
     try:
@@ -63,6 +69,23 @@ async def create_edge(body: EdgeCreate, db: Annotated[AsyncSession, Depends(get_
     except IntegrityError:
         await db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "Duplicate edge")
+    await db.refresh(edge)
+    return edge
+
+
+@router.patch(
+    "/{edge_id}",
+    response_model=EdgeOut,
+    dependencies=[Depends(admin_or_staff)],
+)
+async def update_edge(
+    edge_id: int, body: EdgeUpdate, db: Annotated[AsyncSession, Depends(get_db)]
+):
+    edge = await db.get(Edge, edge_id)
+    if edge is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Edge not found")
+    edge.path = body.path
+    await db.commit()
     await db.refresh(edge)
     return edge
 
